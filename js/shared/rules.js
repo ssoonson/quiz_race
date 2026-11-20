@@ -27,7 +27,24 @@ export const RUN = {
   minStunMs: 1200,
   graceMs: 900,         // 넘어졌다 일어난 뒤 잠깐 무적
   sendHz: 6,            // 내 위치를 1초에 몇 번 보낼지
+  speedTolerance: 1.1,  // 서버 규칙: 출발 후 (최고 속도 × 이 배수 × 시간 + speedSlack)보다 앞서면 거절
+  speedSlack: 5,
 };
+
+/** 트랙별 결승 위치 (출발 z=26) */
+export const TRACK_FINISH_Z = { tour: -234, rainbow: -100, space: -100, ocean: -100 };
+
+/**
+ * 직접 조종 방에 저장할 값: 서버 보안 규칙이 이 값으로 속도·결승을 검사합니다.
+ *  maxSpeed     최고 달리기 속도 (초당)
+ *  finishZ      결승선 위치
+ *  minFinishMs  출발 후 이보다 빨리 결승하면 거절 (정상 최고 기록보다 짧게)
+ */
+export function runLimits(track) {
+  const finishZ = TRACK_FINISH_Z[track] ?? -100;
+  const maxSpeed = Math.round(((26 - finishZ) / RUN.raceSeconds) * 1000) / 1000;
+  return { finishZ, maxSpeed, minFinishMs: Math.floor((RUN.raceSeconds * 1000) / RUN.speedTolerance) };
+}
 export const COUNTDOWN_MS = 3000;
 
 /** 4자리 방 코드 (0으로 시작하지 않음) */

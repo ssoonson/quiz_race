@@ -137,7 +137,7 @@ async function finishRun(now) {
   control.setActive(false);
   sounds.finisher(1);
   banner.show('', '🏁 결승!', { kind: 'right', ms: 1200 });
-  await net.update(code, { [`players/${net.uid}/finishedAt`]: now }).catch(() => toast('연결이 불안정해요.'));
+  await net.update(code, { [`players/${net.uid}/finishedAt`]: net.serverTime() }).catch(() => toast('연결이 불안정해요.'));
 }
 
 const myRank = () => rankRoom(room).findIndex((p) => p.uid === net.uid) + 1;
@@ -270,7 +270,7 @@ $('#quiz').addEventListener('click', async (e) => {
     const patch = { [`${base}/answered`]: (p.answered || 0) + 1 };
     if (right) {
       Object.assign(patch, { [`${base}/correct`]: correct, [`${base}/lastCorrectAt`]: now });
-      if (correct >= room.settings.goal) patch[`${base}/finishedAt`] = now;
+      if (correct >= room.settings.goal) patch[`${base}/finishedAt`] = net.serverTime();
     } else {
       Object.assign(patch, { [`${base}/wrong`]: (p.wrong || 0) + 1, [`${base}/stunUntil`]: now + (room.settings.stunMs || 0) });
     }

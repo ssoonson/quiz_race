@@ -74,12 +74,18 @@ export function createRunControl({ view, net, code, getRoom, onFinish }) {
       j: Math.round(s.j * 100) / 100,
       st: Math.round(s.st),
       round: room?.state?.round || 1,
+      t: net.serverTime(), // 서버가 받은 시각 (규칙이 속도 검사에 사용)
     };
     const key = `${pos.x},${pos.z},${pos.j},${pos.st}`;
     if (key === lastSent && !force) return;
     lastSend = now;
     lastSent = key;
-    net.update(code, { [`players/${net.uid}/pos`]: pos }).catch(() => {});
+    net.update(code, { [`players/${net.uid}/pos`]: pos }).catch(() => {
+      // 서버가 거절함 (보통은 일어나지 않음): 서버에 남아 있는 위치로 되돌려 맞춤
+      const server = getRoom()?.players?.[net.uid]?.pos;
+      if (s && server && server.z > s.z) s.z = server.z;
+      lastSent = '';
+    });
   }
 
   // ---------- 매 프레임 ----------
@@ -101,7 +107,7 @@ export function createRunControl({ view, net, code, getRoom, onFinish }) {
     const track = view.track();
     if (!active || !track || !s) return;
     const room = getRoom();
-    const maxSpeed = (START_Z - track.finishZ) / RUN.raceSeconds;
+    const maxSpeed = room?.settings?.maxSpeed || (START_Z - track.finishZ) / RUN.raceSeconds;
     const stunned = s.st > now;
 
     // 앞으로 달리기 (부드럽게 빨라지고 느려짐)

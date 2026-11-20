@@ -9,6 +9,7 @@
 //   watchRoom(code, cb)  방이 바뀔 때마다 cb(방 데이터 또는 null). 반환값을 부르면 그만 봄
 //   update(code, patch)  {'state/phase': 'playing', 'players/uid/correct': 3} 처럼 경로별로 바꿈 (null = 지움)
 //   removeRoom(code)
+//   serverTime()         '기록하는 순간의 서버 시각'을 뜻하는 값 (보안 규칙이 학생 기기 시계를 믿지 않도록)
 import { firebaseConfig } from '../../firebase-config.js';
 
 export const firebaseReady = () => Boolean(firebaseConfig.apiKey && firebaseConfig.databaseURL);

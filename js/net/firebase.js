@@ -1,7 +1,7 @@
 // Firebase Realtime Database 연결. 학생은 계정 없이 '익명 로그인'으로 들어옵니다.
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
-import { getDatabase, ref, get, set, update, remove, onValue } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js';
+import { getDatabase, ref, get, set, update, remove, onValue, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js';
 import { makeRoomCode } from '../shared/rules.js';
 
 export async function connectFirebase(config) {
@@ -24,6 +24,7 @@ export async function connectFirebase(config) {
     mode: 'firebase',
     uid: user.uid,
     now: () => Date.now() + offset,
+    serverTime: () => serverTimestamp(),
     async createRoom(room) {
       for (let tries = 0; tries < 20; tries++) {
         const code = makeRoomCode();

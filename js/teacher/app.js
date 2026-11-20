@@ -8,7 +8,7 @@ import { TRACKS, CHARACTER_LABELS } from '../core/config.js';
 import { connect } from '../net/index.js';
 import {
   DEFAULT_SETTINGS, GOAL_OPTIONS, TIME_OPTIONS, COUNTDOWN_MS, LIMITS,
-  answerHash, makeSalt, ranking, rankRoom, progressFor, MODES, remainingSeconds,
+  answerHash, makeSalt, ranking, rankRoom, progressFor, MODES, runLimits, remainingSeconds,
 } from '../shared/rules.js';
 import { createScene } from '../shared/scene.js';
 import { createBanner } from '../shared/banner.js';
@@ -87,6 +87,7 @@ $('#roomSettings').addEventListener('click', async (e) => {
   if (!e.target.closest('[data-create]')) return;
   const settings = loadSettings();
   const runMode = settings.mode === 'run';
+  if (runMode) Object.assign(settings, runLimits(settings.track)); // 서버 규칙이 쓰는 속도·결승 기준
   const set = currentSet();
   const questions = readyQuestions(set);
   if (!runMode && !questions.length) return toast('완성된 문제가 없습니다. 문제와 보기 4개를 모두 채워 주세요.');
