@@ -19,6 +19,15 @@
             "lastCorrectAt": { ".validate": "newData.isNumber()" },
             "stunUntil": { ".validate": "newData.isNumber()" },
             "finishedAt": { ".validate": "newData.isNumber()" },
+            "pos": {
+              ".validate": "newData.hasChildren(['x', 'z'])",
+              "x": { ".validate": "newData.isNumber() && newData.val() >= -20 && newData.val() <= 20" },
+              "z": { ".validate": "newData.isNumber() && newData.val() >= -300 && newData.val() <= 60" },
+              "j": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10" },
+              "st": { ".validate": "newData.isNumber()" },
+              "round": { ".validate": "newData.isNumber()" },
+              "$other": { ".validate": false }
+            },
             "$other": { ".validate": false }
           }
         }

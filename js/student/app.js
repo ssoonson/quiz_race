@@ -1,11 +1,12 @@
-// 학생 화면: 입장(방 코드 + 이름) → 대기 → 문제 풀기(내 캐릭터 3D) → 결승 → 결과
+// 학생 화면: 입장(방 코드 + 이름) → 대기 → 문제 풀기 또는 직접 조종(내 캐릭터 3D) → 결승 → 결과
 import { $, escapeHTML, toast, formatTime } from '../core/dom.js';
 import { state, setSetting } from '../core/store.js';
 import { sounds, audioContext } from '../core/audio.js';
 import { connect } from '../net/index.js';
-import { LIMITS, cleanName, answerHash, questionFor, ranking, remainingSeconds } from '../shared/rules.js';
+import { LIMITS, cleanName, answerHash, questionFor, rankRoom, remainingSeconds, progressFor } from '../shared/rules.js';
 import { createScene } from '../shared/scene.js';
 import { createBanner } from '../shared/banner.js';
+import { createRunControl } from './run-control.js';
 
 const MARKS = ['▲', '◆', '●', '■'];
 const NAME_KEY = 'quiz-race-my-name';
@@ -26,8 +27,11 @@ let busy = false;           // 답 보내는 중
 let shownKey = '';          // 지금 보여 주는 문제 (같은 문제를 다시 그리지 않게)
 let lastPhase = '';
 let lastCount = 0;
+let control = null;         // 직접 조종 모드 입력·물리
+let padShown = false;
 
 const me = () => room?.players?.[net.uid];
+const isRun = () => room?.settings?.mode === 'run';
 const phaseOf = () => {
   const s = room?.state;
   if (!s) return 'lobby';
@@ -110,16 +114,33 @@ function onRoom(next) {
   room = next;
   if (!me()) return backToJoin('선생님이 내보냈어요. 이름을 확인하고 다시 들어와 주세요.');
   scene.view.sync(room, net.uid);
+  document.body.classList.toggle('run', isRun());
+  if (isRun() && !control) {
+    control = createRunControl({ view: scene.view, net, code, getRoom: () => room, onFinish: finishRun });
+    scene.onFrame((dt, now) => control.step(dt, now));
+  }
   const phase = phaseOf();
   if (phase !== lastPhase) {
     if (phase === 'lobby') { shownKey = ''; banner.clear(); }
     if (phase === 'finished' && lastPhase) sounds.finisher(myRank() === 1 ? 1 : 4);
+    if (control) {
+      if (phase === 'countdown' || (phase === 'playing' && !control.state)) control.reset(phase === 'playing' ? me().pos : null);
+      control.setActive(phase === 'playing' && !me().finishedAt);
+    }
     lastPhase = phase;
   }
   render();
 }
 
-const myRank = () => ranking(room?.players || {}).findIndex((p) => p.uid === net.uid) + 1;
+/** 직접 조종: 결승선 통과 */
+async function finishRun(now) {
+  control.setActive(false);
+  sounds.finisher(1);
+  banner.show('', '🏁 결승!', { kind: 'right', ms: 1200 });
+  await net.update(code, { [`players/${net.uid}/finishedAt`]: now }).catch(() => toast('연결이 불안정해요.'));
+}
+
+const myRank = () => rankRoom(room).findIndex((p) => p.uid === net.uid) + 1;
 
 // 0.2초마다: 카운트다운·남은 시간·쉬는 시간 갱신
 setInterval(() => {
@@ -143,7 +164,15 @@ function render() {
   const panel = $('#quiz');
   if (phase === 'lobby' || phase === 'countdown') {
     shownKey = '';
-    panel.innerHTML = `
+    padShown = false;
+    panel.innerHTML = isRun() ? `
+      <div class="wait run-wait">
+        <div class="big">${phase === 'countdown' ? '곧 출발!' : '🙌 준비 완료!'}</div>
+        <p><b>${escapeHTML(p.name)}</b> 님, 노란 고리가 있는 캐릭터가 나예요.</p>
+        <p class="muted">⬆ <b>달리기</b>를 누르고 있으면 달리고, ◀ ▶ 로 피하고, <b>점프</b>로 장애물을 넘어요.
+        높은 장애물은 점프로 못 넘으니 옆으로 피하세요! 부딪히면 넘어져서 잠깐 쉬어요.<br>
+        키보드: ↑ 달리기 · ← → 이동 · 스페이스 점프</p>
+      </div>` : `
       <div class="wait">
         <div class="big">${phase === 'countdown' ? '곧 출발!' : '🙌 준비 완료!'}</div>
         <p><b>${escapeHTML(p.name)}</b> 님, 노란 고리가 있는 캐릭터가 나예요.</p>
@@ -154,19 +183,43 @@ function render() {
   }
   if (phase === 'finished' || p.finishedAt) {
     shownKey = '';
+    padShown = false;
     const rank = myRank();
-    const top = ranking(room.players).slice(0, 5);
+    const top = rankRoom(room).slice(0, 5);
     panel.innerHTML = `
       <div class="wait">
         <div class="big">${p.finishedAt ? '🏁 결승 도착!' : '⏰ 경기 끝!'}</div>
         <p class="rank-big">${rank <= 3 ? ['🥇', '🥈', '🥉'][rank - 1] : ''} 지금 <b>${rank}등</b></p>
-        <p class="muted">맞힘 ${p.correct || 0} · 틀림 ${p.wrong || 0}</p>
-        ${phase === 'finished' ? `<ol class="mini-rank">${top.map((x) => `<li class="${x.uid === net.uid ? 'me' : ''}">${escapeHTML(x.name)} <span>${x.correct || 0}</span></li>`).join('')}</ol>`
+        ${isRun() ? '' : `<p class="muted">맞힘 ${p.correct || 0} · 틀림 ${p.wrong || 0}</p>`}
+        ${phase === 'finished' ? `<ol class="mini-rank">${top.map((x) => `<li class="${x.uid === net.uid ? 'me' : ''}">${escapeHTML(x.name)} <span>${isRun() ? (x.finishedAt ? '🏁' : `${Math.round(progressFor(x, room.settings, finishZ()) * 100)}%`) : x.correct || 0}</span></li>`).join('')}</ol>`
           : '<p class="muted">다른 친구들이 들어올 때까지 응원해 주세요!</p>'}
       </div>`;
     return;
   }
+  if (isRun()) return renderPad();
   renderQuestion();
+}
+
+const finishZ = () => scene?.view.track()?.finishZ ?? -100;
+
+/** 직접 조종 버튼 (한 번만 그림: 누르고 있는 중에 다시 그려지면 손가락이 떨어진 것으로 처리되므로) */
+function renderPad() {
+  if (padShown) return;
+  padShown = true;
+  const panel = $('#quiz');
+  panel.innerHTML = `
+    <div class="pad">
+      <div class="pad-side">
+        <button class="ctl" data-ctl="left" aria-label="왼쪽">◀</button>
+        <button class="ctl" data-ctl="right" aria-label="오른쪽">▶</button>
+      </div>
+      <div class="pad-hint">키보드: ↑ 달리기 · ← → 이동 · 스페이스 점프</div>
+      <div class="pad-side">
+        <button class="ctl jump" data-ctl="jump">점프</button>
+        <button class="ctl run" data-ctl="run">⬆ 달리기</button>
+      </div>
+    </div>`;
+  control.bindPad(panel.querySelector('.pad'));
 }
 
 function currentQuestionIndex() {
@@ -231,14 +284,20 @@ function renderStatus() {
   if (!p) return;
   const rem = remainingSeconds(room, net.now());
   $('#myName').textContent = p.name;
-  $('#myScore').textContent = `${p.correct || 0} / ${room.settings.goal}`;
+  const progress = progressFor(p, room.settings, finishZ());
+  $('#myScore').textContent = isRun() ? `${Math.round((control?.state && !p.finishedAt ? Math.min(1, Math.max(0, (26 - control.state.z) / (26 - finishZ()))) : progress) * 100)}%` : `${p.correct || 0} / ${room.settings.goal}`;
   $('#myRank').textContent = phaseOf() === 'lobby' ? '-' : `${myRank()}등`;
   $('#myTime').textContent = rem === Infinity ? '∞' : formatTime(rem);
-  $('#myProgress').style.width = `${Math.min(100, ((p.correct || 0) / room.settings.goal) * 100)}%`;
+  $('#myProgress').style.width = isRun() ? $('#myScore').textContent : `${Math.min(100, ((p.correct || 0) / room.settings.goal) * 100)}%`;
   document.body.classList.toggle('final', phaseOf() === 'playing' && rem <= 10);
 }
 
 function renderStun() {
+  if (isRun()) {
+    const left = ((control?.state?.st || 0) - net.now()) / 1000;
+    document.body.classList.toggle('stunned', left > 0);
+    return;
+  }
   const box = $('[data-stun]');
   if (!box) return;
   const left = ((me()?.stunUntil || 0) - net.now()) / 1000;

@@ -21,12 +21,15 @@ export function createScene(mount, getContext, now) {
   const effects = createEffects(stage.scene);
   on('quality:changed', () => view.refreshShadows());
 
+  const hooks = []; // 매 프레임 먼저 부를 함수들 (직접 조종 입력 처리 등)
   let last = 0;
   function frame(time) {
     requestAnimationFrame(frame);
-    const dt = last ? Math.min(0.1, (time - last) / 1000) : 0;
+    const rawDt = last ? Math.min(0.5, (time - last) / 1000) : 0;
+    const dt = Math.min(0.1, rawDt);
     last = time;
     const ctx = getContext();
+    for (const hook of hooks) hook(rawDt, now()); // 조종은 실제 흐른 시간으로 (느린 기기에서도 같은 속도)
     view.update(dt, now());
     effects.update(dt);
     quality.sample(dt, ctx.phase === 'running');
@@ -48,6 +51,8 @@ export function createScene(mount, getContext, now) {
 
   return {
     stage, view, director, effects,
+    /** 매 프레임 호출할 함수 등록: fn(dt, now) */
+    onFrame: (fn) => hooks.push(fn),
     /** 결승선에서 꽃가루 */
     confetti(count = 120) {
       const t = view.track();

@@ -10,7 +10,24 @@ export const LIMITS = {
 
 export const GOAL_OPTIONS = [5, 8, 10, 12, 15, 20];           // 결승까지 맞혀야 하는 문제 수
 export const TIME_OPTIONS = [60, 120, 180, 240, 300, 0];      // 제한 시간(초), 0 = 없음
-export const DEFAULT_SETTINGS = { goal: 10, timeLimit: 180, stunMs: 2000, track: 'tour', character: 'jelly' };
+export const DEFAULT_SETTINGS = { mode: 'quiz', goal: 10, timeLimit: 180, stunMs: 2000, track: 'tour', character: 'jelly' };
+
+// 게임 방식: quiz = 문제를 맞히면 전진, run = 학생이 방향키·화면 버튼으로 직접 조종
+export const MODES = { quiz: '📝 문제 풀기', run: '🎮 직접 조종 (자유 달리기)' };
+
+/** 직접 조종 모드의 물리값 */
+export const RUN = {
+  raceSeconds: 40,      // 쉬지 않고 달리면 결승까지 약 40초 (트랙 길이에 맞춰 최고 속도를 정함)
+  accel: 0.5,           // 최고 속도까지 걸리는 시간(초)의 역수 비율 → 약 2초
+  laneLimit: 10.2,      // 좌우로 갈 수 있는 한계 (난간 안쪽)
+  strafeSpeed: 9,       // 좌우 이동 속도 (초당)
+  jumpHeight: 2.7,      // 점프 최고 높이
+  gravity: 30,
+  knockback: 2.2,       // 부딪히면 뒤로 밀리는 거리
+  minStunMs: 1200,
+  graceMs: 900,         // 넘어졌다 일어난 뒤 잠깐 무적
+  sendHz: 6,            // 내 위치를 1초에 몇 번 보낼지
+};
 export const COUNTDOWN_MS = 3000;
 
 /** 4자리 방 코드 (0으로 시작하지 않음) */
@@ -60,18 +77,34 @@ export function questionFor(uid, round, count, n) {
 export const progressOf = (player, goal) => Math.min(1, (player?.correct || 0) / goal);
 
 /**
- * 순위: ① 결승에 먼저 들어온 순서 ② 맞힌 개수 많은 순 ③ 마지막으로 맞힌 시각이 빠른 순
+ * 순위
+ *  문제 풀기: ① 결승에 먼저 들어온 순서 ② 맞힌 개수 많은 순 ③ 마지막으로 맞힌 시각이 빠른 순
+ *  직접 조종: ① 결승에 먼저 들어온 순서 ② 더 멀리 간 순 (z가 작을수록 앞)
  * @returns [{uid, ...player}]
  */
-export function ranking(players = {}) {
+export function ranking(players = {}, mode = 'quiz') {
   return Object.entries(players)
     .map(([uid, p]) => ({ uid, ...p }))
     .sort((a, b) => {
       const af = a.finishedAt || Infinity, bf = b.finishedAt || Infinity;
       if (af !== bf) return af - bf;
+      if (mode === 'run') return (a.pos?.z ?? 99) - (b.pos?.z ?? 99) || (a.joinedAt || 0) - (b.joinedAt || 0);
       if ((b.correct || 0) !== (a.correct || 0)) return (b.correct || 0) - (a.correct || 0);
       return (a.lastCorrectAt || Infinity) - (b.lastCorrectAt || Infinity) || (a.joinedAt || 0) - (b.joinedAt || 0);
     });
+}
+
+/** 방 데이터로 순위 */
+export const rankRoom = (room) => ranking(room?.players || {}, room?.settings?.mode);
+
+/** 진행률 0~1 (모드에 맞게). finishZ: 트랙 결승 위치 */
+export function progressFor(player, settings, finishZ = -100) {
+  if (settings?.mode === 'run') {
+    if (player?.finishedAt) return 1;
+    const z = player?.pos?.z ?? 26;
+    return Math.min(1, Math.max(0, (26 - z) / (26 - finishZ)));
+  }
+  return progressOf(player, settings?.goal || 10);
 }
 
 /** 입장 순서 (레인·색 배정용) */

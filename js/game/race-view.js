@@ -1,5 +1,7 @@
 // 퀴즈 레이스 3D 경기 화면 (선생님 화면·학생 화면 공용)
-//  - 방 데이터(room)를 받아 선수들을 세우고, 맞힌 개수만큼 앞으로 달려가게 합니다.
+//  - 문제 풀기 모드: 방 데이터(room)를 받아 선수들을 세우고, 맞힌 개수만큼 앞으로 달려가게 합니다.
+//  - 직접 조종 모드: 학생들이 보낸 위치(players/uid/pos)대로 움직입니다. 내 캐릭터는 setLocal()로
+//    받은 내 조작 결과를 지연 없이 그리고, 다른 학생은 받은 위치 사이를 부드럽게 이어 그립니다.
 //  - 문제를 맞히면 한 칸 거리를 약 0.9초 동안 달려가고(점프·회피 포함), 틀리면 넘어져 있다가 일어납니다.
 //  - 결승에 들어온 선수는 결승선에서 만세를 부릅니다.
 import { THREE, clearGroup } from './parts.js';
@@ -18,6 +20,8 @@ export function createRaceView(stage) {
   let rosterKey = '';
   let goal = 10;
   let me = '';
+  let mode = 'quiz';
+  let localState = null; // 직접 조종: 내 위치 {x, z, j, st, finished}
   let clock = 0;
   const runners = new Map(); // uid → runner
 
@@ -74,9 +78,10 @@ export function createRaceView(stage) {
     });
   }
 
-  function pose(r, now, moving, z, x, stepScale) {
+  function pose(r, now, moving, z, x, stepScale, jump) {
     const p = r.player || {};
-    const stunned = (p.stunUntil || 0) > now && !r.finished;
+    const stunUntil = r.stunUntil ?? p.stunUntil ?? 0;
+    const stunned = stunUntil > now && !r.finished;
     r.model.rotation.x = 0;
     if (stunned) {
       // 넘어짐: 뒤로 벌러덩 + 살짝 들썩
@@ -90,11 +95,45 @@ export function createRaceView(stage) {
       const hop = Math.abs(Math.sin(clock * 5 + r.baseX));
       r.model.position.y = r.model.userData.baseY + hop * 0.5;
       r.armL.rotation.x = r.armR.rotation.x = 2.9;
-    } else if (moving) {
-      animateRunner(r, z, jumpHeightAt(track.obstacles, x, z), stepScale);
+    } else if (moving || jump > 0.05) {
+      animateRunner(r, z, jump ?? jumpHeightAt(track.obstacles, x, z), stepScale);
     } else {
       idleRunner(r);
       r.model.position.y = r.model.userData.baseY + Math.abs(Math.sin(clock * 3 + r.baseX)) * 0.04; // 제자리 숨쉬기
+    }
+  }
+
+  /** 직접 조종 모드: 받은 위치로 그리기 */
+  function updateRun(dt, now, stepScale) {
+    const length = START_Z - track.finishZ;
+    const k = 1 - Math.exp(-dt * 10);
+    for (const r of runners.values()) {
+      const p = r.player || {};
+      const local = r.uid === me ? localState : null;
+      const src = local || p.pos;
+      if (!src || (p.pos && !local && p.pos.round !== undefined && p.pos.round !== p.round)) {
+        r.cur = null; // 아직 출발 전: 출발선에 서 있기
+        r.stunUntil = 0;
+        r.shown = 0;
+        r.finished = false;
+        place(r, r.baseX, r.startZ);
+        pose(r, now, false, r.startZ, r.baseX, stepScale, 0);
+        continue;
+      }
+      if (!r.cur || local) r.cur = { x: src.x, z: src.z, j: src.j || 0 };
+      else {
+        r.cur.x += (src.x - r.cur.x) * k;
+        r.cur.z += (src.z - r.cur.z) * k;
+        r.cur.j += ((src.j || 0) - r.cur.j) * k;
+      }
+      r.finished = Boolean(p.finishedAt || local?.finished);
+      r.stunUntil = (local ? local.st : src.st) || 0;
+      const moving = r.lastRunZ !== undefined && Math.abs(r.cur.z - r.lastRunZ) > dt * 0.4;
+      r.lastRunZ = r.cur.z;
+      r.shown = r.finished ? 1 : Math.min(1, Math.max(0, (START_Z - r.cur.z) / length));
+      r.progress = r.shown;
+      place(r, r.cur.x, r.cur.z);
+      pose(r, now, moving, r.cur.z, r.cur.x, stepScale, r.cur.j);
     }
   }
 
@@ -103,6 +142,7 @@ export function createRaceView(stage) {
     sync(room, myUid = '') {
       if (!room?.settings) return;
       goal = room.settings.goal;
+      mode = room.settings.mode || 'quiz';
       me = myUid;
       setTrack(room.settings.track);
       if (room.settings.character !== style) { style = room.settings.character; rosterKey = ''; }
@@ -110,12 +150,16 @@ export function createRaceView(stage) {
       for (const [uid, r] of runners) r.player = room.players?.[uid];
     },
 
+    /** 직접 조종: 내 캐릭터의 지금 상태 */
+    setLocal(state) { localState = state; },
+
     /** 매 프레임 */
     update(dt, now) {
       if (!track) return;
       clock += dt;
       animateObstacles(track.animated, clock);
       const stepScale = BASE_RUN_LENGTH / (START_Z - track.finishZ);
+      if (mode === 'run') return updateRun(dt, now, stepScale);
       const speed = dt / (SECONDS_PER_STEP * goal);
       for (const r of runners.values()) {
         const p = r.player || {};
