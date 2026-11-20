@@ -10,6 +10,7 @@ import {
   DEFAULT_SETTINGS, GOAL_OPTIONS, TIME_OPTIONS, COUNTDOWN_MS, LIMITS,
   answerHash, makeSalt, ranking, rankRoom, progressFor, MODES, runLimits, remainingSeconds,
 } from '../shared/rules.js';
+import { DENSITY } from '../shared/run-obstacles.js';
 import { createScene } from '../shared/scene.js';
 import { createBanner } from '../shared/banner.js';
 import { mountEditor, currentSet } from './editor.js';
@@ -61,7 +62,9 @@ function renderSettingsCard() {
   $('#roomSettings').innerHTML = `
     <div class="card-head"><h2>⚙ 경기 설정</h2></div>
     <label>게임 방식<select data-k="mode">${opt(Object.keys(MODES), s.mode, (v) => MODES[v])}</select></label>
-    ${s.mode === 'run' ? '' : `<label>결승까지 맞힐 문제 수<select data-k="goal">${opt(GOAL_OPTIONS, s.goal, (v) => `${v}문제`)}</select></label>`}
+    ${s.mode === 'run'
+      ? `<label>장애물 양<select data-k="density">${opt(Object.keys(DENSITY), s.density || 'many', (v) => DENSITY[v].label)}</select></label>`
+      : `<label>결승까지 맞힐 문제 수<select data-k="goal">${opt(GOAL_OPTIONS, s.goal, (v) => `${v}문제`)}</select></label>`}
     <label>제한 시간<select data-k="timeLimit">${opt(TIME_OPTIONS, s.timeLimit, (v) => (v ? `${v / 60}분` : '없음 (모두 결승까지)'))}</select></label>
     <label>${s.mode === 'run' ? '부딪히면 쉬는 시간' : '틀리면 쉬는 시간'}<select data-k="stunMs">${opt([0, 1000, 2000, 3000], s.stunMs, (v) => (v ? `${v / 1000}초` : s.mode === 'run' ? '최소(1.2초)' : '쉬지 않음'))}</select></label>
     <label>트랙<select data-k="track">${opt(Object.keys(TRACKS), s.track, (v) => `${TRACKS[v].emoji} ${TRACKS[v].name}`)}</select></label>
@@ -87,7 +90,11 @@ $('#roomSettings').addEventListener('click', async (e) => {
   if (!e.target.closest('[data-create]')) return;
   const settings = loadSettings();
   const runMode = settings.mode === 'run';
-  if (runMode) Object.assign(settings, runLimits(settings.track)); // 서버 규칙이 쓰는 속도·결승 기준
+  if (runMode) {
+    Object.assign(settings, runLimits(settings.track)); // 서버 규칙이 쓰는 속도·결승 기준
+    settings.density ||= 'many';
+    settings.seed = Math.floor(Math.random() * 1e9);     // 장애물 배치 (판마다 round와 섞여 바뀜)
+  }
   const set = currentSet();
   const questions = readyQuestions(set);
   if (!runMode && !questions.length) return toast('완성된 문제가 없습니다. 문제와 보기 4개를 모두 채워 주세요.');

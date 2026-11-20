@@ -18,14 +18,14 @@ export const MODES = { quiz: '📝 문제 풀기', run: '🎮 직접 조종 (자
 /** 직접 조종 모드의 물리값 */
 export const RUN = {
   raceSeconds: 40,      // 쉬지 않고 달리면 결승까지 약 40초 (트랙 길이에 맞춰 최고 속도를 정함)
-  accel: 0.5,           // 최고 속도까지 걸리는 시간(초)의 역수 비율 → 약 2초
+  accel: 1,             // 최고 속도까지 걸리는 시간(초)의 역수 → 약 1초
   laneLimit: 10.2,      // 좌우로 갈 수 있는 한계 (난간 안쪽)
   strafeSpeed: 9,       // 좌우 이동 속도 (초당)
-  jumpHeight: 2.7,      // 점프 최고 높이
-  gravity: 30,
-  knockback: 2.2,       // 부딪히면 뒤로 밀리는 거리
+  jumpHeight: 2.6,      // 점프 최고 높이
+  gravity: 22,          // 낮을수록 오래 떠 있음 (점프 타이밍이 너그러워짐)
+  knockback: 1.6,       // 부딪히면 뒤로 밀리는 거리
   minStunMs: 1200,
-  graceMs: 900,         // 넘어졌다 일어난 뒤 잠깐 무적
+  graceMs: 1600,        // 넘어졌다 일어난 뒤 잠깐 무적 (부딪힌 장애물을 지나갈 수 있게)
   sendHz: 6,            // 내 위치를 1초에 몇 번 보낼지
   speedTolerance: 1.1,  // 서버 규칙: 출발 후 (최고 속도 × 이 배수 × 시간 + speedSlack)보다 앞서면 거절
   speedSlack: 5,
@@ -65,8 +65,8 @@ export async function answerHash(salt, questionIndex, choice) {
 
 export const makeSalt = () => [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, '0')).join('');
 
-/** 문자열로 정해지는 난수 (학생마다 문제 순서를 다르게 섞되, 새로고침해도 같은 순서) */
-function seeded(text) {
+/** 문자열로 정해지는 난수 (같은 글자를 넣으면 어느 기기에서나 같은 순서의 난수) */
+export function seeded(text) {
   let h = 2166136261;
   for (const ch of text) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
   return () => {

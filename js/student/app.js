@@ -83,7 +83,7 @@ function showJoinError(msg) {
 function enterGame(joinCode) {
   code = joinCode;
   joined = true;
-  history.replaceState(null, '', `?room=${code}`);
+  history.replaceState(null, '', `?room=${code}${new URLSearchParams(location.search).has('debug') ? '&debug' : ''}`);
   $('#join').hidden = true;
   $('#game').hidden = false;
   banner ??= createBanner($('#banner'));
@@ -95,6 +95,8 @@ function enterGame(joinCode) {
   }), () => net.now());
   unwatch?.();
   unwatch = net.watchRoom(code, onRoom);
+  // 주소에 ?debug가 있을 때만: 시험·문제 확인용으로 내부 상태 열어 두기
+  if (new URLSearchParams(location.search).has('debug')) window.__quizRace = { scene, net, control: () => control, room: () => room };
 }
 
 function backToJoin(message) {

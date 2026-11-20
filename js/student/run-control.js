@@ -6,6 +6,7 @@
 import { RUN } from '../shared/rules.js';
 import { START_Z } from '../game/layout.js';
 import { sounds } from '../core/audio.js';
+import { obstacleX } from '../shared/run-obstacles.js';
 
 const KEYMAP = {
   ArrowLeft: 'left', KeyA: 'left',
@@ -136,11 +137,14 @@ export function createRunControl({ view, net, code, getRoom, onFinish }) {
       if (s.j === 0) s.vj = 0;
     }
 
-    // 장애물 충돌
+    // 장애물 충돌: 트랙에 원래 있는 장애물(판정을 조금 너그럽게) + 직접 조종 전용 장애물(모양 그대로)
     if (!stunned && !s.finished && now > s.grace) {
-      for (const o of track.obstacles) {
-        const hitX = Math.abs(s.x - o.x) < o.halfWidth * 0.8 + 0.3;
-        const hitZ = Math.abs(s.z - o.z) < o.halfDepth * 0.6 + 0.3;
+      const startAt = view.runStartAt();
+      const tSec = startAt && now > startAt ? (now - startAt) / 1000 : 0;
+      for (const o of [...track.obstacles, ...view.runObstacles()]) {
+        const ox = obstacleX(o, tSec);
+        const hitX = o.exact ? Math.abs(s.x - ox) < o.halfWidth + 0.35 : Math.abs(s.x - ox) < o.halfWidth * 0.8 + 0.3;
+        const hitZ = o.exact ? Math.abs(s.z - o.z) < o.halfDepth + 0.3 : Math.abs(s.z - o.z) < o.halfDepth * 0.6 + 0.3;
         if (hitX && hitZ && (o.dodge || s.j < o.clearHeight * 0.75)) {
           const stunMs = Math.max(RUN.minStunMs, room?.settings?.stunMs || 0);
           s.st = now + stunMs;

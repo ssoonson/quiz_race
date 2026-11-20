@@ -4,7 +4,8 @@
 //    받은 내 조작 결과를 지연 없이 그리고, 다른 학생은 받은 위치 사이를 부드럽게 이어 그립니다.
 //  - 문제를 맞히면 한 칸 거리를 약 0.9초 동안 달려가고(점프·회피 포함), 틀리면 넘어져 있다가 일어납니다.
 //  - 결승에 들어온 선수는 결승선에서 만세를 부릅니다.
-import { THREE, clearGroup } from './parts.js';
+import { THREE, clearGroup, add, box, cylinder, ball, bakeInto } from './parts.js';
+import { makeRunObstacles, obstacleX } from '../shared/run-obstacles.js';
 import { buildTrack, animateObstacles } from './tracks/index.js';
 import { createRunner, animateRunner, idleRunner } from './characters/index.js';
 import { START_Z, laneX, laneRow, jumpHeightAt, dodgeOffsetAt } from './layout.js';
@@ -22,6 +23,11 @@ export function createRaceView(stage) {
   let me = '';
   let mode = 'quiz';
   let localState = null; // 직접 조종: 내 위치 {x, z, j, st, finished}
+  let runObstacles = [];  // 직접 조종 전용 장애물 (허들·벽·움직이는 블록)
+  let runKey = '';
+  let runGroup = null;
+  let movers = [];        // 움직이는 블록의 3D 그룹
+  let startAt = 0;
   let clock = 0;
   const runners = new Map(); // uid → runner
 
@@ -103,10 +109,73 @@ export function createRaceView(stage) {
     }
   }
 
+  // ---------- 직접 조종 전용 장애물 ----------
+  const HURDLE_COLORS = ['#ff5578', '#ffb03c', '#46cfed', '#a477ef', '#5fcf6b'];
+  function buildRunObstacles(list) {
+    if (runGroup) { runGroup.removeFromParent(); clearGroup(runGroup); }
+    runGroup = new THREE.Group();
+    movers = [];
+    const fixed = new THREE.Group();
+    const c = track.centerX;
+    const turn = (z) => (track.curved ? Math.atan2(c(z + 1) - c(z - 1), 2) : 0);
+    list.forEach((o, i) => {
+      const g = new THREE.Group();
+      g.position.set(c(o.z) + o.x, 0, o.z);
+      g.rotation.y = turn(o.z);
+      const w = o.halfWidth * 2;
+      if (o.kind === 'hurdle') {
+        const color = HURDLE_COLORS[i % HURDLE_COLORS.length];
+        for (const side of [-1, 1]) {
+          add(g, cylinder(0.12, 0.14, 0.8, '#fff3d9'), side * (o.halfWidth - 0.15), 0.4, 0);
+          add(g, ball(0.18, color), side * (o.halfWidth - 0.15), 0.85, 0);
+        }
+        const stripes = Math.max(2, Math.round(w / 1.4));
+        for (let k = 0; k < stripes; k++) {
+          add(g, box(w / stripes, 0.26, 0.26, k % 2 ? '#ffffff' : color), -o.halfWidth + (k + 0.5) * (w / stripes), 0.65, 0);
+        }
+        fixed.add(g);
+      } else if (o.kind === 'wall') {
+        add(g, box(w, 2.6, 0.8, '#7c6cd8'), 0, 1.3, 0);
+        add(g, box(w + 0.1, 0.25, 0.9, '#ffd34e'), 0, 2.7, 0);
+        for (let k = 0; k < Math.floor(w / 1.6); k++) add(g, ball(0.22, '#fff3d9'), -o.halfWidth + 0.8 + k * 1.6, 1.5, 0.42);
+        fixed.add(g);
+      } else {
+        const body = add(g, new THREE.Group());
+        add(body, box(2.6, 2.3, 1.4, '#ff6c4a'), 0, 1.15, 0);
+        add(body, box(2.7, 0.3, 1.5, '#ffd34e'), 0, 2.35, 0);
+        for (const side of [-1, 1]) add(body, ball(0.2, '#1d2926'), side * 0.5, 1.5, 0.71); // 눈
+        add(body, box(0.9, 0.12, 0.05, '#1d2926'), 0, 1.0, 0.71);                       // 입
+        bakeInto(body, { deep: true });
+        runGroup.add(g);
+        movers.push({ g, o });
+      }
+    });
+    bakeInto(fixed, { deep: true });
+    runGroup.add(fixed);
+    stage.courseGroup.add(runGroup);
+  }
+
+  function syncRunObstacles(room) {
+    const s = room.settings;
+    const round = room.state?.round || 1;
+    const key = `${trackId}|${s.seed}|${round}|${s.density}`;
+    startAt = room.state?.startAt || 0;
+    if (key === runKey) return;
+    runKey = key;
+    runObstacles = makeRunObstacles({ seed: s.seed ?? 1, round, finishZ: track.finishZ, existing: track.obstacles, density: s.density });
+    buildRunObstacles(runObstacles);
+  }
+
+  function animateMovers(now) {
+    const t = startAt && now > startAt ? (now - startAt) / 1000 : 0;
+    for (const { g, o } of movers) g.position.x = track.centerX(o.z) + obstacleX(o, t);
+  }
+
   /** 직접 조종 모드: 받은 위치로 그리기 */
   function updateRun(dt, now, stepScale) {
     const length = START_Z - track.finishZ;
     const k = 1 - Math.exp(-dt * 10);
+    animateMovers(now);
     for (const r of runners.values()) {
       const p = r.player || {};
       const local = r.uid === me ? localState : null;
@@ -145,10 +214,16 @@ export function createRaceView(stage) {
       mode = room.settings.mode || 'quiz';
       me = myUid;
       setTrack(room.settings.track);
+      if (mode === 'run') syncRunObstacles(room);
+      else if (runGroup) { runGroup.removeFromParent(); clearGroup(runGroup); runGroup = null; runKey = ''; runObstacles = []; }
       if (room.settings.character !== style) { style = room.settings.character; rosterKey = ''; }
       syncRoster(room.players || {});
       for (const [uid, r] of runners) r.player = room.players?.[uid];
     },
+
+    /** 직접 조종 전용 장애물 목록과 시작 시각 (충돌 판정용) */
+    runObstacles: () => runObstacles,
+    runStartAt: () => startAt,
 
     /** 직접 조종: 내 캐릭터의 지금 상태 */
     setLocal(state) { localState = state; },
