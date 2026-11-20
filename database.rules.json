@@ -8,7 +8,7 @@
         "host": { ".validate": "newData.val() === auth.uid || data.val() === newData.val()" },
         "players": {
           "$uid": {
-            ".write": "auth != null && auth.uid === $uid && (data.exists() || (root.child('rooms').child($code).child('state/phase').val() === 'lobby' && root.child('rooms').child($code).child('players').numChildren() < 40))",
+            ".write": "auth != null && auth.uid === $uid && (data.exists() || root.child('rooms').child($code).child('state/phase').val() === 'lobby')",
             ".validate": "newData.hasChildren(['name', 'joinedAt']) || !newData.exists()",
             "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12" },
             "joinedAt": { ".validate": "newData.isNumber()" },
