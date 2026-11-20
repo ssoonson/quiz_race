@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <meta name="theme-color" content="#1d2926"/>
+  <title>퀴즈 레이스</title>
+  <link rel="stylesheet" href="./css/base.css"/>
+  <link rel="stylesheet" href="./css/game.css"/>
+  <link rel="stylesheet" href="./css/student.css"/>
+</head>
+<body class="student">
+  <!-- 입장 -->
+  <main id="join" class="join">
+    <form id="joinForm" class="join-card" autocomplete="off">
+      <div class="logo">🏁</div>
+      <h1>퀴즈 레이스</h1>
+      <p class="muted">문제를 맞히면 내 캐릭터가 달려가요!</p>
+      <label>방 코드<input id="codeInput" inputmode="numeric" pattern="\d{4}" maxlength="4" placeholder="1234" required/></label>
+      <label>내 이름<input id="nameInput" placeholder="이름" required/></label>
+      <p id="joinError" class="error" hidden></p>
+      <button id="joinBtn" class="primary big" type="submit">들어가기</button>
+      <a class="teacher-link" href="teacher.html">선생님이신가요? 방 만들기 →</a>
+    </form>
+  </main>
+
+  <!-- 경기 -->
+  <main id="game" class="game" hidden>
+    <section class="view">
+      <div id="canvasMount"></div>
+      <div id="banner"></div>
+      <div class="status-bar">
+        <span class="chip-dark">🙂 <b id="myName"></b></span>
+        <span class="chip-dark">⭐ <b id="myScore"></b></span>
+        <span class="chip-dark">🏅 <b id="myRank"></b></span>
+        <span class="chip-dark race-time">⏱ <b id="myTime"></b></span>
+        <button id="soundBtn" class="chip-btn" type="button" aria-label="효과음 켜기/끄기">🔊</button>
+      </div>
+      <div class="progress mine"><div id="myProgress"></div></div>
+    </section>
+    <section id="quiz" class="quiz" aria-live="polite"></section>
+  </main>
+  <script type="module" src="./js/student/app.js"></script>
+</body>
+</html>

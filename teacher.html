@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="theme-color" content="#1d2926"/>
+  <title>퀴즈 레이스 · 선생님</title>
+  <link rel="stylesheet" href="./css/base.css"/>
+  <link rel="stylesheet" href="./css/game.css"/>
+  <link rel="stylesheet" href="./css/teacher.css"/>
+</head>
+<body class="teacher">
+  <header class="topbar">
+    <div class="brand"><span class="brand-icon">🏁</span><div><strong>퀴즈 레이스</strong><small>선생님 화면</small></div></div>
+    <div class="top-actions">
+      <span id="modeBadge" class="badge"></span>
+      <button id="soundBtn" class="ghost"></button>
+      <button id="musicBtn" class="ghost"></button>
+      <button id="fullBtn" class="ghost">⛶ 전체화면</button>
+    </div>
+  </header>
+
+  <!-- 1) 방 만들기: 문제집 + 경기 설정 -->
+  <main id="setup" class="setup">
+    <section id="editor" class="card"></section>
+    <aside id="roomSettings" class="card settings"></aside>
+  </main>
+
+  <!-- 2) 방: 3D 경기 + 대기실 + 순위 -->
+  <main id="room" class="layout" hidden>
+    <section class="arena">
+      <div id="canvasMount"></div>
+      <div id="banner"></div>
+      <div class="arena-top">
+        <span id="roomCodeChip"></span><span id="timer" class="race-time"></span><span id="phaseChip" class="status"></span>
+      </div>
+      <div id="lobby" class="lobby-card" hidden></div>
+      <div class="bottom-hud">
+        <div class="buttons">
+          <button id="startBtn" class="primary">▶ 시작</button>
+          <button id="endBtn">■ 끝내기</button>
+          <button id="replayBtn">↻ 다시 하기</button>
+          <button id="closeBtn">방 닫기</button>
+        </div>
+      </div>
+    </section>
+    <aside class="side">
+      <div id="board" class="panel"></div>
+      <div id="cameraPanel" class="panel"></div>
+    </aside>
+  </main>
+  <div id="results" class="result-overlay" hidden></div>
+  <script type="module" src="./js/teacher/app.js"></script>
+</body>
+</html>

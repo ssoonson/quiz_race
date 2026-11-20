@@ -1,0 +1,28 @@
+{
+  "rules": {
+    "rooms": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null && (!data.exists() || data.child('host').val() === auth.uid)",
+        ".validate": "$code.matches(/^[0-9]{4}$/) && newData.child('host').isString()",
+        "host": { ".validate": "newData.val() === auth.uid || data.val() === newData.val()" },
+        "players": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && (data.exists() || (root.child('rooms').child($code).child('state/phase').val() === 'lobby' && root.child('rooms').child($code).child('players').numChildren() < 40))",
+            ".validate": "newData.hasChildren(['name', 'joinedAt']) || !newData.exists()",
+            "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12" },
+            "joinedAt": { ".validate": "newData.isNumber()" },
+            "round": { ".validate": "newData.isNumber()" },
+            "correct": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && (!data.exists() || newData.val() <= data.val() + 1 || root.child('rooms').child($code).child('host').val() === auth.uid)" },
+            "wrong": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "answered": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "lastCorrectAt": { ".validate": "newData.isNumber()" },
+            "stunUntil": { ".validate": "newData.isNumber()" },
+            "finishedAt": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        }
+      }
+    }
+  }
+}
