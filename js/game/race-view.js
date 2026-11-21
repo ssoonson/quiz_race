@@ -6,6 +6,7 @@
 //  - 결승에 들어온 선수는 결승선에서 만세를 부릅니다.
 import { THREE, clearGroup, add, box, cylinder, ball, bakeInto } from './parts.js';
 import { makeRunObstacles, obstacleX } from '../shared/run-obstacles.js';
+import { buildMover } from './moving-obstacles.js';
 import { buildTrack, animateObstacles } from './tracks/index.js';
 import { createRunner, animateRunner, idleRunner } from './characters/index.js';
 import { START_Z, laneX, laneRow, jumpHeightAt, dodgeOffsetAt } from './layout.js';
@@ -119,6 +120,12 @@ export function createRaceView(stage) {
     const c = track.centerX;
     const turn = (z) => (track.curved ? Math.atan2(c(z + 1) - c(z - 1), 2) : 0);
     list.forEach((o, i) => {
+      if (o.mover) { // 굴러가는 돌·회전 막대
+        const m = buildMover(o, c, HURDLE_COLORS[i % HURDLE_COLORS.length]);
+        runGroup.add(m.group);
+        movers.push({ update: m.update });
+        return;
+      }
       const g = new THREE.Group();
       g.position.set(c(o.z) + o.x, 0, o.z);
       g.rotation.y = turn(o.z);
@@ -168,7 +175,10 @@ export function createRaceView(stage) {
 
   function animateMovers(now) {
     const t = startAt && now > startAt ? (now - startAt) / 1000 : 0;
-    for (const { g, o } of movers) g.position.x = track.centerX(o.z) + obstacleX(o, t);
+    for (const m of movers) {
+      if (m.update) m.update(t);
+      else m.g.position.x = track.centerX(m.o.z) + obstacleX(m.o, t);
+    }
   }
 
   /** 직접 조종 모드: 받은 위치로 그리기 */
