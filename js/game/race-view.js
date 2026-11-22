@@ -31,6 +31,7 @@ export function createRaceView(stage) {
   let startAt = 0;
   let clock = 0;
   const runners = new Map(); // uid → runner
+  const RUN_ROW_GAP = 1.1;    // 직접 조종 모드의 출발 줄 간격
 
   function setTrack(id) {
     if (id === trackId && track) return;
@@ -62,7 +63,7 @@ export function createRaceView(stage) {
 
   function syncRoster(players) {
     const order = joinOrder(players);
-    const key = `${style}|${trackId}|${me}|` + order.map((uid) => `${uid}:${players[uid].name}`).join(',');
+    const key = `${style}|${trackId}|${me}|${mode}|` + order.map((uid) => `${uid}:${players[uid].name}`).join(',');
     if (key === rosterKey) return;
     rosterKey = key;
     clearGroup(stage.playerGroup);
@@ -73,8 +74,11 @@ export function createRaceView(stage) {
       const row = laneRow(i);
       r.uid = uid;
       r.name = p.name;
-      r.baseX = laneX(i) + (track.curved ? ((row % 2) - 0.5) * 0.48 : 0);
-      r.startZ = START_Z + row * track.rowGap;
+      // 직접 조종: 뒷줄이 불리하지 않게 줄 간격을 좁히고, 겹치지 않게 홀수 줄은 반 칸 옆으로
+      const run = mode === 'run';
+      const stagger = run ? ((row % 2) - 0.5) * 1.3 : track.curved ? ((row % 2) - 0.5) * 0.48 : 0;
+      r.baseX = laneX(i) + stagger;
+      r.startZ = START_Z + row * (run ? Math.min(track.rowGap, RUN_ROW_GAP) : track.rowGap);
       r.shown = progressOf(p, goal); // 화면에 보이는 진행률 (실제 맞힌 개수를 따라감)
       r.shadow.visible = !stage.shadows;
       if (uid === me) r.group.add(meRing());

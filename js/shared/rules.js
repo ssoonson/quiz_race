@@ -1,7 +1,7 @@
 // 퀴즈 레이스 규칙과 계산. 선생님 화면과 학생 화면이 함께 씁니다.
 
 export const LIMITS = {
-  maxPlayers: 40,
+  maxPlayers: 60,
   nameLength: 12,
   questions: 100,
   questionLength: 200,
